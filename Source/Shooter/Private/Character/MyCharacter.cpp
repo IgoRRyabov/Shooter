@@ -1,0 +1,345 @@
+#include "Character/MyCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputMappingContext.h"
+#include "Components/SprintMovementModComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Net/UnrealNetwork.h"
+#include "Weapons/BaseWeapon.h"
+
+AMyCharacter::AMyCharacter()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	// Сетевой персонаж (перемещение уже реплицируется базовым Character)
+	bReplicates = true;
+
+	// Повороты: вращаемся в сторону движения, камера — от контроллера
+	GetCharacterMovement()->bOrientRotationToMovement = false;
+	bUseControllerRotationYaw = false;
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll  = false;
+
+	// Камера: бум + смещённая камера “за плечом”
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(RootComponent);
+	CameraBoom->TargetArmLength = 350.f;
+	CameraBoom->bUsePawnControlRotation = true;
+	CameraBoom->SocketOffset = FVector(0.f, 60.f, 60.f); // вправо/вверх чуть-чуть
+
+	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
+	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	FollowCamera->bUsePawnControlRotation = false;
+
+	// Тюнинг движения
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	GetCharacterMovement()->JumpZVelocity = 600.f;
+	GetCharacterMovement()->AirControl = 0.25f;
+	GetCharacterMovement()->BrakingDecelerationWalking = 2048.f;
+	GetCharacterMovement()->bUseControllerDesiredRotation = true; // хотим поворот к контроллеру
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
+	
+	MovementMods = CreateDefaultSubobject<UMovementModsManagerComponent>(TEXT("MovementModsManager"));
+	Stamina      = CreateDefaultSubobject<UStaminaComponent>(TEXT("Stamina"));
+	SprintMod    = CreateDefaultSubobject<USprintMovementModComponent>(TEXT("SprintMod"));
+}
+
+void AMyCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	MovementMods->Initialize(GetCharacterMovement());
+
+	SprintMod->Initialize(Stamina, 2.f);
+	SprintMod->SetManager(MovementMods);
+	MovementMods->RegisterMod(SprintMod);
+	
+	// Прокинем Mapping Context локальному игроку
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		if (ULocalPlayer* LP = PC->GetLocalPlayer())
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* Subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
+			{
+				if (DefaultIMC)
+				{
+					Subsys->AddMappingContext(DefaultIMC, /*Priority*/0);
+				}
+			}
+		}
+	}
+
+	if (HasAuthority() && DefaultWeaponClass)
+	{
+		SpawnAndHolster(DefaultWeaponClass);
+	}
+
+	if (HasAuthority())
+	{
+		CanSprint = true;
+	}
+}
+
+void AMyCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	
+	if (!IsLocallyControlled()) return;
+
+	
+
+	const FRotator AimRot = GetBaseAimRotation();
+	const FRotator ActorRot = GetActorRotation();
+
+	const FRotator DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(AimRot, ActorRot);
+
+	FVector2D NewOffset(DeltaRot.Yaw, DeltaRot.Pitch);
+	
+	NewOffset.X = FMath::Clamp(NewOffset.X, -90.f, 90.f);
+	NewOffset.Y = FMath::Clamp(NewOffset.Y, -90.f, 90.f);
+	
+	AimOffset = NewOffset;
+
+	if (HasAuthority() == false)
+	{
+		Server_UpdateAimOffset(NewOffset);
+	}
+}
+
+void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+		
+	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		if (IA_Move) EIC->BindAction(IA_Move, ETriggerEvent::Triggered, this, &AMyCharacter::Move);
+		if (IA_Look) EIC->BindAction(IA_Look, ETriggerEvent::Triggered, this, &AMyCharacter::Look);
+
+		if (IA_Jump)
+		{
+			EIC->BindAction(IA_Jump, ETriggerEvent::Started,   this, &ACharacter::Jump);
+			EIC->BindAction(IA_Jump, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
+		}
+		if (IA_Sprint)
+		{
+			EIC->BindAction(IA_Sprint, ETriggerEvent::Started,   this, &AMyCharacter::SprintStart);
+			EIC->BindAction(IA_Sprint, ETriggerEvent::Completed, this, &AMyCharacter::SprintStop);
+		}
+		if (IA_Fire)
+		{
+			if (CurrentWeapon)
+			{
+				EIC->BindAction(IA_Fire, ETriggerEvent::Started, CurrentWeapon, &ABaseWeapon::StartFire);
+				EIC->BindAction(IA_Fire, ETriggerEvent::Completed, CurrentWeapon, &ABaseWeapon::StopFire);
+			} 
+			//EIC->BindAction(IA_Fire, IE_Pressed, Weapon->StartFire());
+			//EIC->BindAction(IA_Fire, ETriggerEvent::Completed, Weapon->StopFire);
+		}
+		if (IA_Reload)
+		{
+			//EIC->BindAction(IA_Reload, )
+		}
+		if (IA_EquipSlot1)
+		{
+			EIC->BindAction(IA_EquipSlot1, ETriggerEvent::Started, this, &AMyCharacter::EquipSlot1_Pressed);
+		}
+		if (IA_Aim)
+		{
+			EIC->BindAction(IA_Aim, ETriggerEvent::Started, this, &AMyCharacter::StartAiming);
+		}
+	}
+}
+
+void AMyCharacter::Move(const FInputActionValue& Value)
+{
+	const FVector2D Axis = Value.Get<FVector2D>();
+	if (!Controller || Axis.IsNearlyZero()) return;
+
+	const FRotator YawRot(0.f, Controller->GetControlRotation().Yaw, 0.f);
+	const FVector Forward = FRotationMatrix(YawRot).GetUnitAxis(EAxis::X);
+	const FVector Right   = FRotationMatrix(YawRot).GetUnitAxis(EAxis::Y);
+
+	AddMovementInput(Forward, Axis.Y);
+	AddMovementInput(Right,   Axis.X);
+}
+
+void AMyCharacter::Look(const FInputActionValue& Value)
+{
+	const FVector2D Axis = Value.Get<FVector2D>();
+	AddControllerYawInput(Axis.X);
+	AddControllerPitchInput(Axis.Y);
+}
+
+void AMyCharacter::SprintStart(const FInputActionValue& Value)
+{
+	Server_SprintStart();
+}
+
+void AMyCharacter::SprintStop(const FInputActionValue& Value)
+{
+	Server_SprintStop();
+}
+
+void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
+{
+	bIsSprinting = bNewSprinting;
+	OnRep_Sprinting();
+}
+
+void AMyCharacter::OnRep_Sprinting()
+{
+	//GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? SprintSpeed : WalkSpeed;
+}
+
+void AMyCharacter::OnRep_Aiming()
+{
+	
+}
+
+void AMyCharacter::Server_Aiming_Implementation()
+{
+	if (!HasAuthority()) return;
+	bIsAiming = !bIsAiming;
+	CanSprint = !bIsAiming;
+}
+
+void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(AMyCharacter, bIsSprinting);
+	DOREPLIFETIME(AMyCharacter, CurrentWeapon);
+	DOREPLIFETIME_CONDITION(AMyCharacter, AimOffset, COND_SkipOwner);
+}
+
+void AMyCharacter::Server_SprintStart_Implementation()
+{
+	if (!HasAuthority() || !CanSprint) return;
+	if (SprintMod) SprintMod->Input_SprintStart();
+}
+
+void AMyCharacter::Server_SprintStop_Implementation()
+{
+	if (!HasAuthority()) return;
+	if (SprintMod) SprintMod->Input_SprintStop();
+}
+
+void AMyCharacter::Server_SpawnDefaultWeapon_Implementation()
+{
+	if (!HasAuthority()) return;
+	if (DefaultWeaponClass)
+	{
+		SpawnAndHolster(DefaultWeaponClass);
+	}
+}
+
+void AMyCharacter::Server_TogglePrimary_Implementation()
+{
+	if (!HasAuthority() || !CurrentWeapon) return;
+
+	bEquip = CurrentWeapon->IsEquipped();
+	
+	if (!bEquip)
+	{
+		// Убрать за спину
+		CurrentWeapon->EquipToHand(GetMesh(), HandSocket);
+	}else
+	{
+		// Взять в руки
+		CurrentWeapon->HolsterToBack(GetMesh(), BackSocket);
+	}
+}
+
+void AMyCharacter::OnRep_Equipped()
+{
+	Multicast_PlayEquipHolsterMontage();
+}
+
+void AMyCharacter::SpawnAndHolster(TSubclassOf<ABaseWeapon> WeaponClass)
+{
+	if (!HasAuthority() || !WeaponClass) return;
+
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->Destroy();
+		CurrentWeapon = nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	ABaseWeapon* W = GetWorld()->SpawnActor<ABaseWeapon>(WeaponClass, Params);
+	if (!W) return;
+
+	W->SetOwningCharacter(this);
+	CurrentWeapon = W;
+
+	W->HolsterToBack(GetMesh(), BackSocket);
+}
+
+void AMyCharacter::EquipSlot1_Pressed(const struct FInputActionValue&)
+{
+	Server_TogglePrimary();
+}
+
+void AMyCharacter::SpawnAndEquip(TSubclassOf<ABaseWeapon> WeaponClass)
+{
+	if (!HasAuthority() || !WeaponClass) return;
+
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->Unequip();
+		CurrentWeapon->Destroy();
+		CurrentWeapon =  nullptr;
+	}
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	ABaseWeapon* NewWeap = GetWorld()->SpawnActor<ABaseWeapon>(WeaponClass, Params);
+	if (!NewWeap) return;
+
+	CurrentWeapon =  NewWeap;
+	NewWeap->Equip(this, GetMesh(), WeaponAttachSocket);
+}
+
+void AMyCharacter::StartAiming()
+{
+	Server_Aiming();
+}
+
+void AMyCharacter::OnRep_AimOffset() {}
+
+void AMyCharacter::Server_UpdateAimOffset_Implementation(FVector2D NewAimOffset)
+{
+	AimOffset = NewAimOffset;
+}
+
+void AMyCharacter::Multicast_PlayEquipHolsterMontage_Implementation()
+{
+	if (!EquipHolsterMontage) return;
+
+	if (USkeletalMeshComponent* MyMesh = GetMesh())
+	{
+		if (UAnimInstance* Anim = MyMesh->GetAnimInstance())
+		{
+			if (Anim->Montage_IsPlaying(EquipHolsterMontage) == false)
+			{
+				Anim->Montage_Play(EquipHolsterMontage, 1.f);
+			}
+			const FName Section = bEquip ? EquipSectionName :  HolsterSectionName;
+			if (Section != NAME_None)
+			{
+				Anim->Montage_JumpToSection(Section,  EquipHolsterMontage);
+			}
+		}
+	}
+}
+
+void AMyCharacter::OnRep_CurrentWeapon(){}
