@@ -79,6 +79,7 @@ void AMyCharacter::BeginPlay()
 
 	if (HasAuthority())
 	{
+		bEquip = false;
 		CanSprint = true;
 	}
 }
@@ -132,15 +133,15 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			if (CurrentWeapon)
 			{
-				EIC->BindAction(IA_Fire, ETriggerEvent::Started, CurrentWeapon, &ABaseWeapon::StartFire);
-				EIC->BindAction(IA_Fire, ETriggerEvent::Completed, CurrentWeapon, &ABaseWeapon::StopFire);
+				EIC->BindAction(IA_Fire, ETriggerEvent::Started, this, &AMyCharacter::StartFire);
+				EIC->BindAction(IA_Fire, ETriggerEvent::Completed, this, &AMyCharacter::StopFire);
 			} 
 			//EIC->BindAction(IA_Fire, IE_Pressed, Weapon->StartFire());
 			//EIC->BindAction(IA_Fire, ETriggerEvent::Completed, Weapon->StopFire);
 		}
 		if (IA_Reload)
 		{
-			//EIC->BindAction(IA_Reload, )
+			EIC->BindAction(IA_Reload, ETriggerEvent::Completed, this, &AMyCharacter::StartReload);
 		}
 		if (IA_EquipSlot1)
 		{
@@ -201,7 +202,7 @@ void AMyCharacter::OnRep_Aiming()
 
 void AMyCharacter::Server_Aiming_Implementation()
 {
-	if (!HasAuthority()) return;
+	if (!HasAuthority() || !bEquip) return;
 	bIsAiming = !bIsAiming;
 	CanSprint = !bIsAiming;
 }
@@ -243,14 +244,47 @@ void AMyCharacter::Server_TogglePrimary_Implementation()
 	
 	if (!bEquip)
 	{
-		// Убрать за спину
+		// Взять в руки
 		CurrentWeapon->EquipToHand(GetMesh(), HandSocket);
+		bEquip = true;
 	}else
 	{
-		// Взять в руки
+		// Убрать за спину
 		CurrentWeapon->HolsterToBack(GetMesh(), BackSocket);
+		bEquip = false;
 	}
 }
+
+void AMyCharacter::StartFire()
+{
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->StartFire();
+	}
+}
+
+void AMyCharacter::StopFire()
+{
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->StopFire();
+	}
+}
+
+void AMyCharacter::StartReload()
+{
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->StartReload();
+		Reloading();
+	}
+}
+
+void AMyCharacter::Reloading_Implementation()
+{
+	
+}
+
 
 void AMyCharacter::OnRep_Equipped()
 {

@@ -87,9 +87,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon|Fire")
 	virtual void StopFire();
 
+	UFUNCTION(BlueprintCallable, Category="Weapon|Fire")
+	virtual void StartReload();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Fire")
-	EWeaponFireMode FireMode = EWeaponFireMode::SemiAuto;
+	EWeaponFireMode FireMode = EWeaponFireMode::FullAuto;
 
 	// Выстрелов в секунду
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Fire")
@@ -105,6 +108,27 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void Server_FireOnce();
 
+	UFUNCTION(Server, Reliable)
+	void Server_Fire();
+
+	UFUNCTION(Server, Reliable)
+	void Server_StopFire();
+
+	UFUNCTION(Server, Reliable)
+	void Server_Reload();
+
+	UFUNCTION(Server, Reliable)
+	void Server_CancelRelaod();
+
+	UFUNCTION(NetMulticast, Unreliable)
+	void Multicast_PlayReloadMontage(bool bPlay);
+
+	UFUNCTION(Server, Reliable)
+	void Server_HandleReloadPoint();
+
+	UFUNCTION()
+	virtual void HandleReloadPoint_Server();
+	
 	// Косметика всем клиентам
 	UFUNCTION(NetMulticast,Unreliable)
 	void Multicast_FireFX();
@@ -123,13 +147,13 @@ protected:
 
 	/** === Ammo === */
 	UPROPERTY(Replicated, EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Ammo")
-	int32 ClipSize = 30;
+	int32 ClipSize = 30;  // Вместимость магазина
 
 	UPROPERTY(ReplicatedUsing=OnRep_Ammo, BlueprintReadOnly, Category="Weapon|Ammo")
-	int32 AmmoInClip = 30;
+	int32 AmmoInClip = 30; // Кол-во патронов в магазине
 
 	UPROPERTY(Replicated, EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Ammo")
-	int32 SpareAmmo = 90;
+	int32 SpareAmmo = 90; // Общее кол-во патронов
 
 	UFUNCTION()
 	void OnRep_Ammo();
@@ -137,6 +161,27 @@ protected:
 	virtual bool ConsumeAmmo(int32 Amount = 1);
 
 public:
+	UPROPERTY(ReplicatedUsing=OnRep_IsReloading, BlueprintReadOnly, Category="Weapon|Ammo")
+	bool bIsReloading = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Ammo")
+	float ReloadDuration = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Ammo")
+	UAnimMontage* ReloadMontage =  nullptr;
+
+	FTimerHandle ReloadTimerHandle;
+
+	void StartReload_Server();
+	void FinishReload_Server();
+	void CancelReload_Server();
+
+	virtual void OnReloadStarted();
+	virtual void OnReloadFinished();
+	
+	UFUNCTION()
+	void OnRep_IsReloading();
+	
 	UFUNCTION(BlueprintCallable, Category="Weapon|Ammo")
 	bool CanReload() const { return AmmoInClip < ClipSize && SpareAmmo > 0; }
 
@@ -162,3 +207,4 @@ protected:
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 };
+

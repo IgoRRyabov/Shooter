@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "Weapons/BaseWeapon.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -25,6 +26,8 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick( float DeltaSeconds ) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	ABaseWeapon* GetCurrentWeapon() {return CurrentWeapon;}
 	/** === Camera === */
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
@@ -144,6 +147,18 @@ protected:
 	void Server_SpawnDefaultWeapon();
 
 	UFUNCTION(Server, Reliable) void Server_TogglePrimary();
+
+	UFUNCTION()
+	void StartFire();
+	
+	UFUNCTION()
+	void StopFire();
+
+	UFUNCTION()
+	void StartReload();
+
+	UFUNCTION(BlueprintNativeEvent, Category="Weapon")
+	void Reloading();
 
 	UFUNCTION()
 	void OnRep_Equipped();
