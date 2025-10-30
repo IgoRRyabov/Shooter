@@ -90,6 +90,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon|Fire")
 	virtual void StartReload();
 
+	UFUNCTION(Server, Reliable)
+	void Server_HandleReloadPoint();
+
+	UFUNCTION()
+	virtual void HandleReloadPoint_Server();
+
 protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Fire")
 	EWeaponFireMode FireMode = EWeaponFireMode::FullAuto;
@@ -122,12 +128,6 @@ protected:
 
 	UFUNCTION(NetMulticast, Unreliable)
 	void Multicast_PlayReloadMontage(bool bPlay);
-
-	UFUNCTION(Server, Reliable)
-	void Server_HandleReloadPoint();
-
-	UFUNCTION()
-	virtual void HandleReloadPoint_Server();
 	
 	// Косметика всем клиентам
 	UFUNCTION(NetMulticast,Unreliable)

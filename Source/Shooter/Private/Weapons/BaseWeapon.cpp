@@ -201,6 +201,14 @@ void ABaseWeapon::CancelReload_Server()
 	Multicast_PlayReloadMontage(false);
 }
 
+void ABaseWeapon::OnReloadStarted()
+{
+}
+
+void ABaseWeapon::OnReloadFinished()
+{
+}
+
 void ABaseWeapon::OnRep_IsReloading()
 {
 }
@@ -214,9 +222,9 @@ void ABaseWeapon::Multicast_PlayReloadMontage_Implementation(bool bPlay)
 {
 	ACharacter* OwnerChar = Cast<ACharacter>(GetOwner());
 	if (!OwnerChar) return;
-	USkeletalMeshComponent* Mesh = OwnerChar->GetMesh();
-	if (!Mesh) return;
-	UAnimInstance* Anim = Mesh->GetAnimInstance();
+	USkeletalMeshComponent* MyMesh = OwnerChar->GetMesh();
+	if (!MyMesh) return;
+	UAnimInstance* Anim = MyMesh->GetAnimInstance();
 	if (!Anim) return;
 
 	if (bPlay)
