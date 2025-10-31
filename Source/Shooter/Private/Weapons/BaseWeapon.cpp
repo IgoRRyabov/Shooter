@@ -147,7 +147,7 @@ void ABaseWeapon::Server_StopFire_Implementation()
 
 void ABaseWeapon::Server_HandleReloadPoint_Implementation()
 {
-	
+	HandleReloadPoint_Server();
 }
 
 void ABaseWeapon::Server_Reload_Implementation()
@@ -158,16 +158,16 @@ void ABaseWeapon::Server_Reload_Implementation()
 void ABaseWeapon::StartReload_Server()
 {
 	if (!HasAuthority()) return;
-	if (!CanFire()) return;
+	if (!CanReload()) return;
 
 	bIsReloading = true;
 	OnRep_IsReloading();
 
 	Multicast_PlayReloadMontage(true);
 
-	GetWorldTimerManager().ClearTimer(ReloadTimerHandle);
-	GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &ABaseWeapon::FinishReload_Server, ReloadDuration, false);
-
+	const float Duration = ReloadMontage ? ReloadMontage->GetPlayLength() : ReloadDuration;
+	GetWorldTimerManager().SetTimer(ReloadTimerHandle, this, &ABaseWeapon::FinishReload_Server, Duration, false);
+	
 	OnReloadStarted();
 }
 
@@ -175,18 +175,14 @@ void ABaseWeapon::FinishReload_Server()
 {
 	if (!HasAuthority()) return;
 
-	const int32 Need = ClipSize - AmmoInClip;
-	const int32 ToTake = FMath::Min(Need, SpareAmmo);
-
-	AmmoInClip += ToTake;
-	SpareAmmo  -= ToTake;
+	if (AmmoInClip < ClipSize && SpareAmmo > 0)
+	{
+		HandleReloadPoint_Server();
+	}
 
 	bIsReloading = false;
 	OnRep_IsReloading();
-
 	Multicast_PlayReloadMontage(false);
-
-	OnRep_Ammo();
 	OnReloadFinished();
 }
 

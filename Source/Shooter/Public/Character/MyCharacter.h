@@ -155,10 +155,7 @@ protected:
 	void StopFire();
 
 	UFUNCTION()
-	void StartReload();
-
-	UFUNCTION(BlueprintNativeEvent, Category="Weapon")
-	void Reloading();
+	void Reload();
 
 	UFUNCTION()
 	void OnRep_Equipped();

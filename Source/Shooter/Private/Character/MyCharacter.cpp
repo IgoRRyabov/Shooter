@@ -141,7 +141,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		}
 		if (IA_Reload)
 		{
-			EIC->BindAction(IA_Reload, ETriggerEvent::Completed, this, &AMyCharacter::StartReload);
+			EIC->BindAction(IA_Reload, ETriggerEvent::Completed, this, &AMyCharacter::Reload);
 		}
 		if (IA_EquipSlot1)
 		{
@@ -271,20 +271,13 @@ void AMyCharacter::StopFire()
 	}
 }
 
-void AMyCharacter::StartReload()
+void AMyCharacter::Reload()
 {
 	if (CurrentWeapon)
 	{
-		CurrentWeapon->StartReload();
-		Reloading();
+		CurrentWeapon->Reload();
 	}
 }
-
-void AMyCharacter::Reloading_Implementation()
-{
-	
-}
-
 
 void AMyCharacter::OnRep_Equipped()
 {
