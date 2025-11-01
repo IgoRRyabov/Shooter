@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Character.h"
+#include "HUD/ShooterHUD.h"
 #include "Net/UnrealNetwork.h"
 
 ABaseWeapon::ABaseWeapon()
@@ -311,9 +312,23 @@ bool ABaseWeapon::ConsumeAmmo(int32 Amount)
 	return true;
 }
 
+void ABaseWeapon::UpdateLocalHUD()
+{
+	APawn* OwnerPawn = Cast<APawn>(GetOwner());
+	if (!OwnerPawn || !OwnerPawn->IsLocallyControlled()) return;
+
+	if (APlayerController* PC = Cast<APlayerController>(OwnerPawn->GetController()))
+	{
+		if (AShooterHUD* HUD = Cast<AShooterHUD>(PC->GetHUD()))
+		{
+			HUD->UpdateAmmo(AmmoInClip, SpareAmmo);
+		}
+	}
+}
+
 void ABaseWeapon::OnRep_Ammo()
 {
-	// обновить HUD/виджеты;
+	UpdateLocalHUD();
 }
 
 void ABaseWeapon::Reload()

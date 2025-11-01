@@ -90,6 +90,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Weapon|Fire")
 	virtual void StartReload();
 
+	UFUNCTION()
+	int32 GetAmmoInClip() const {return AmmoInClip;}
+	UFUNCTION()
+	int32 GetSpareAmmo() const {return SpareAmmo;}
+
 	UFUNCTION(Server, Reliable)
 	void Server_HandleReloadPoint();
 
@@ -155,6 +160,8 @@ protected:
 	UPROPERTY(Replicated, EditDefaultsOnly, BlueprintReadOnly, Category="Weapon|Ammo")
 	int32 SpareAmmo = 90; // Общее кол-во патронов
 
+	UFUNCTION()
+	void UpdateLocalHUD();
 	UFUNCTION()
 	void OnRep_Ammo();
 

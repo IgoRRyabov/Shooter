@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include "Components/HealthComponent.h"
 #include "Weapons/BaseWeapon.h"
 #include "MyCharacter.generated.h"
 
@@ -44,6 +45,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	USprintMovementModComponent* SprintMod;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
+	UHealthComponent* HealthComponent;
 	
 	/** === Input (Enhanced Input) === */
 	// Data Assets — проставишь в BP/в деталях класса
@@ -88,6 +92,15 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Movement")
 	float WalkSpeed = 300.f;
 
+	UFUNCTION()
+	void OnHealthChanged_Client(float NewHealth, float Delta);
+
+	UFUNCTION()
+	void OnDeath();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnDeath();
+	
 	UFUNCTION()
 	void OnRep_Sprinting();
 

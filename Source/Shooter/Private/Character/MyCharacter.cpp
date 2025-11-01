@@ -5,7 +5,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SprintMovementModComponent.h"
+#include "HUD/ShooterHUD.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapons/BaseWeapon.h"
@@ -45,12 +47,13 @@ AMyCharacter::AMyCharacter()
 	MovementMods = CreateDefaultSubobject<UMovementModsManagerComponent>(TEXT("MovementModsManager"));
 	Stamina      = CreateDefaultSubobject<UStaminaComponent>(TEXT("Stamina"));
 	SprintMod    = CreateDefaultSubobject<USprintMovementModComponent>(TEXT("SprintMod"));
+	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
 }
 
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
+	
 	MovementMods->Initialize(GetCharacterMovement());
 
 	SprintMod->Initialize(Stamina, 2.f);
@@ -71,7 +74,7 @@ void AMyCharacter::BeginPlay()
 			}
 		}
 	}
-
+	
 	if (HasAuthority() && DefaultWeaponClass)
 	{
 		SpawnAndHolster(DefaultWeaponClass);
@@ -81,6 +84,34 @@ void AMyCharacter::BeginPlay()
 	{
 		bEquip = false;
 		CanSprint = true;
+	}
+
+	if (IsLocallyControlled())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (AShooterHUD* HUD = Cast<AShooterHUD>(PC->GetHUD()))
+			{
+				if (CurrentWeapon)
+				{
+					HUD->UpdateAmmo(CurrentWeapon->GetAmmoInClip(), CurrentWeapon->GetSpareAmmo());
+				}
+			}
+		}
+	}
+
+	if (HealthComponent)
+	{
+		HealthComponent->OnHealthChanged.AddDynamic(this, &AMyCharacter::OnHealthChanged_Client);
+		HealthComponent->OnDeath.AddDynamic(this, &AMyCharacter::OnDeath);
+
+		if (IsLocallyControlled())
+		{
+			// if (AShooterHUD* HUD = Cast<AShooterHUD>(Cast<APlayerController>(GetController())->GetHUD()))
+			// {
+			// 	
+			// }
+		}
 	}
 }
 
@@ -135,9 +166,7 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 			{
 				EIC->BindAction(IA_Fire, ETriggerEvent::Started, this, &AMyCharacter::StartFire);
 				EIC->BindAction(IA_Fire, ETriggerEvent::Completed, this, &AMyCharacter::StopFire);
-			} 
-			//EIC->BindAction(IA_Fire, IE_Pressed, Weapon->StartFire());
-			//EIC->BindAction(IA_Fire, ETriggerEvent::Completed, Weapon->StopFire);
+			}
 		}
 		if (IA_Reload)
 		{
@@ -188,6 +217,54 @@ void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
 {
 	bIsSprinting = bNewSprinting;
 	OnRep_Sprinting();
+}
+
+void AMyCharacter::OnHealthChanged_Client(float NewHealth, float Delta)
+{
+	UE_LOG(LogTemp, Log, TEXT("%s: Health changed -> %.1f (Δ %.1f)"), *GetName(), NewHealth, Delta);
+
+	if (IsLocallyControlled())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			if (AShooterHUD* HUD = Cast<AShooterHUD>(PC->GetHUD()))
+			{
+				// HUD->UpdateHealth(NewHealth, HealthComponent->MaxHealth);
+			}
+		}
+	}
+}	
+
+void AMyCharacter::OnDeath()
+{
+	UE_LOG(LogTemp, Warning, TEXT("%s: died"), *GetName());
+
+	if (HasAuthority())
+	{
+		Multicast_OnDeath();
+	}
+}
+
+void AMyCharacter::Multicast_OnDeath_Implementation()
+{
+	if (USkeletalMeshComponent* MyMesh = GetMesh())
+	{
+		if (AController* C = GetController())
+		{
+			DisableInput(Cast<APlayerController>(C));
+		}
+
+		if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+		{
+			MoveComp->StopMovementImmediately();
+			MoveComp->DisableMovement();
+		}
+
+		MyMesh->SetCollisionProfileName(TEXT("Ragdoll"));
+		MyMesh->SetAllBodiesSimulatePhysics(true);
+		MyMesh->SetSimulatePhysics(true);
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 }
 
 void AMyCharacter::OnRep_Sprinting()

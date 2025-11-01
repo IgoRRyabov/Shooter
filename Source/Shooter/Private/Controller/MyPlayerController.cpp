@@ -13,6 +13,7 @@ void AMyPlayerController::BeginPlay()
 
 	FInputModeGameOnly InputMode;
 	SetInputMode(InputMode);
+
 }
 
 void AMyPlayerController::SetupInputComponent()
