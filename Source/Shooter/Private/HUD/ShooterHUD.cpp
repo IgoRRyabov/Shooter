@@ -1,5 +1,7 @@
 #include "HUD/ShooterHUD.h"
 
+#include "Interfaces/Pickupable.h"
+
 void AShooterHUD::BeginPlay()
 {
 	Super::BeginPlay();
@@ -19,6 +21,16 @@ void AShooterHUD::BeginPlay()
 		if (HealthWidget)
 		{
 			HealthWidget->AddToViewport();
+		}
+	}
+
+	if (PickUpWidgetClass)
+	{
+		PickUpWidget = CreateWidget<UPickUpWidget>(GetWorld(), PickUpWidgetClass);
+		if (PickUpWidget)
+		{
+			PickUpWidget->AddToViewport();
+			PickUpWidget->SetVisibility(ESlateVisibility::Hidden);
 		}
 	}
 }
@@ -44,5 +56,18 @@ void AShooterHUD::UpdateStamina(float NewStamina)
 	if (HealthWidget)
 	{
 		HealthWidget->UpdateStaminaDipslay(NewStamina);
+	}
+}
+
+void AShooterHUD::UpdatePickupPrompt(const FText& NewPickupPrompt, bool isVisible)
+{
+	if (isVisible)
+	{
+		PickUpWidget->SetPickUpText(NewPickupPrompt);
+		PickUpWidget->SetVisibility(ESlateVisibility::Visible);
+	}
+	else
+	{
+		PickUpWidget->SetVisibility(ESlateVisibility::Hidden);
 	}
 }

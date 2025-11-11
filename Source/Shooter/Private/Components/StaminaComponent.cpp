@@ -56,7 +56,7 @@ void UStaminaComponent::TickComponent(float dt, ELevelTick, FActorComponentTickF
 
 void UStaminaComponent::OnRep_Stamina()
 {
-	// HUD/эффекты на клиентах
+	OnStaminaChanged.Broadcast(Stamina);
 }
 
 void UStaminaComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const

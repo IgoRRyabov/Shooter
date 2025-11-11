@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "HUD/ShooterHUD.h"
 #include "StaminaComponent.generated.h"
 
 

@@ -20,6 +20,8 @@ void UHealthComponent::BeginPlay()
 	{
 		Owner->OnTakeAnyDamage.AddDynamic(this, &UHealthComponent::HandleTakeAnyDamage);
 	}
+
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UHealthComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty>& OutLifetimeProps) const
@@ -32,7 +34,7 @@ void UHealthComponent::GetLifetimeReplicatedProps(TArray<class FLifetimeProperty
 
 void UHealthComponent::OnRep_Health()
 {
-	OnHealthChanged.Broadcast(Health, 0.f);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 }
 
 void UHealthComponent::HandleTakeAnyDamage(AActor* DamageActor, float Damage, const UDamageType* DamageType,
@@ -54,7 +56,7 @@ void UHealthComponent::ApplyDamage(float Damage, AController* InstigatedBy, AAct
 	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
 	const float Delta = Health - OldHealth;
 
-	OnHealthChanged.Broadcast(OldHealth, Delta);
+	OnHealthChanged.Broadcast(Health, MaxHealth);
 
 	if (Health <= 0.f && !bIsDead)
 	{

@@ -4,6 +4,7 @@
 #include "GameFramework/HUD.h"
 #include "Widgets/AmmoWidget.h"
 #include "Widgets/HealthWidget.h"
+#include "Widgets/PickUpWidget.h"
 #include "ShooterHUD.generated.h"
 
 
@@ -21,6 +22,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category="UI")
 	TSubclassOf<UHealthWidget> HealthWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UPickUpWidget> PickUpWidgetClass;
 	
 	UPROPERTY()
 	UAmmoWidget* AmmoWidget;
@@ -28,9 +32,14 @@ public:
 	UPROPERTY()
 	UHealthWidget* HealthWidget;
 
+	UPROPERTY()
+	UPickUpWidget* PickUpWidget;
+
 	void UpdateAmmo(int32 AmmoInClip, int32 SpareAmmo);
 
 	void UpdateHealth(float NewHealth, float MaxHealth);
 
 	void UpdateStamina(float NewStamina);
+
+	void UpdatePickupPrompt(const FText& NewPickupPrompt, bool isVisible = false);
 };

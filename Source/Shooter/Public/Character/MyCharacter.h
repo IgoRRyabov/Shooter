@@ -5,6 +5,7 @@
 #include "InputActionValue.h"
 #include "Components/HealthComponent.h"
 #include "Weapons/BaseWeapon.h"
+#include "Widgets/PickUpWidget.h"
 #include "MyCharacter.generated.h"
 
 class USpringArmComponent;
@@ -15,6 +16,7 @@ class UInputMappingContext;
 class UStaminaComponent;
 class UMovementModsManagerComponent;
 class USprintMovementModComponent;
+class AShooterHUD;
 
 UCLASS()
 class SHOOTER_API AMyCharacter : public ACharacter
@@ -78,6 +80,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
 	UInputAction* IA_Aim;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input")
+	UInputAction* IA_PickUp;
+
 	// Состояние спринта
 	UPROPERTY(ReplicatedUsing=OnRep_Sprinting)
 	bool bIsSprinting = false;
@@ -95,6 +100,9 @@ protected:
 	UFUNCTION()
 	void OnHealthChanged_Client(float NewHealth, float Delta);
 
+	UFUNCTION()
+	void OnStaminaChanged_Client(float NewStamina);
+	
 	UFUNCTION()
 	void OnDeath();
 
@@ -117,6 +125,10 @@ protected:
 	void SprintStart(const FInputActionValue& Value);
 	void SprintStop(const FInputActionValue& Value);
 
+	UFUNCTION(Server, Reliable)
+	void TryPickup_Server();
+	
+	void TryPickup();
 	// RPC, если спринтом управляет сервер
 	UFUNCTION(Server, Reliable)
 	void Server_SprintStart();
@@ -126,6 +138,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void Server_Aiming();
+
+	UFUNCTION(Server, Reliable)
+	void PickUp_Server();
 	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -149,6 +164,9 @@ protected:
 	// Текущее оружие (реплицируется)
 	UPROPERTY(ReplicatedUsing=OnRep_CurrentWeapon)
 	ABaseWeapon* CurrentWeapon = nullptr;
+
+	UPROPERTY()
+	AActor* FocusedPickup;
 
 	UPROPERTY(ReplicatedUsing=OnRep_Equipped, BlueprintReadOnly)
 	bool bEquip = false;
@@ -213,4 +231,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category="Aim Offset")
 	FVector2D GetAimOffset() const { return AimOffset; }
+
+	UFUNCTION()
+	UHealthComponent* GetHealsComponent() const {return HealthComponent;};
+private:
+	AShooterHUD* HUD;
+	APlayerController* PC;
+
+	void HUD_Connect();
+	void PC_Connect();
+
+	void UpdatePickupPrompt();
+	void PickUpObject();
 };

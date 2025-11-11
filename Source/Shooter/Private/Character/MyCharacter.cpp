@@ -8,6 +8,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SprintMovementModComponent.h"
 #include "HUD/ShooterHUD.h"
+#include "Interfaces/Pickupable.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapons/BaseWeapon.h"
@@ -59,11 +60,17 @@ void AMyCharacter::BeginPlay()
 	SprintMod->Initialize(Stamina, 2.f);
 	SprintMod->SetManager(MovementMods);
 	MovementMods->RegisterMod(SprintMod);
-	
-	// Прокинем Mapping Context локальному игроку
-	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+
+	if (IsLocallyControlled())
 	{
-		if (ULocalPlayer* LP = PC->GetLocalPlayer())
+		PC_Connect();
+		if (PC) HUD_Connect();
+	}
+	// Прокинем Mapping Context локальному игроку
+
+	if (APlayerController* PC_Local = Cast<APlayerController>(GetController()))
+	{
+		if (ULocalPlayer* LP = PC_Local->GetLocalPlayer())
 		{
 			if (UEnhancedInputLocalPlayerSubsystem* Subsys = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(LP))
 			{
@@ -74,6 +81,7 @@ void AMyCharacter::BeginPlay()
 			}
 		}
 	}
+	
 	
 	if (HasAuthority() && DefaultWeaponClass)
 	{
@@ -86,17 +94,12 @@ void AMyCharacter::BeginPlay()
 		CanSprint = true;
 	}
 
-	if (IsLocallyControlled())
+	if (CurrentWeapon)
 	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		if (IsLocallyControlled())
 		{
-			if (AShooterHUD* HUD = Cast<AShooterHUD>(PC->GetHUD()))
-			{
-				if (CurrentWeapon)
-				{
-					HUD->UpdateAmmo(CurrentWeapon->GetAmmoInClip(), CurrentWeapon->GetSpareAmmo());
-				}
-			}
+			if (HUD) HUD_Connect();
+			HUD->UpdateAmmo(CurrentWeapon->GetAmmoInClip(), CurrentWeapon->GetSpareAmmo());
 		}
 	}
 
@@ -105,24 +108,60 @@ void AMyCharacter::BeginPlay()
 		HealthComponent->OnHealthChanged.AddDynamic(this, &AMyCharacter::OnHealthChanged_Client);
 		HealthComponent->OnDeath.AddDynamic(this, &AMyCharacter::OnDeath);
 
+		if (Stamina)
+		{
+			Stamina->OnStaminaChanged.AddDynamic(this, &AMyCharacter::OnStaminaChanged_Client);
+			OnStaminaChanged_Client(Stamina->GetStamina());
+		}
 		if (IsLocallyControlled())
 		{
-			// if (AShooterHUD* HUD = Cast<AShooterHUD>(Cast<APlayerController>(GetController())->GetHUD()))
-			// {
-			// 	
-			// }
+			if (HUD) HUD_Connect();
+			HUD->UpdateHealth(HealthComponent->Health, HealthComponent->MaxHealth);
 		}
 	}
+}
+
+void AMyCharacter::HUD_Connect()
+{
+	if (!IsLocallyControlled()) return;
+	
+	if (!PC) PC_Connect();
+	HUD = Cast<AShooterHUD>(PC->GetHUD());
+}
+
+void AMyCharacter::PC_Connect()
+{
+	if (!IsLocallyControlled()) return;
+	
+	PC = Cast<APlayerController>(GetController());
+}
+
+void AMyCharacter::UpdatePickupPrompt()
+{
+	if (FocusedPickup)
+	{
+		FText text = IPickupable::Execute_GetPickupText(FocusedPickup);
+		if (HUD)HUD->UpdatePickupPrompt(text, true);
+	}
+	else
+	{
+		if (HUD)HUD->UpdatePickupPrompt(FText::FromString("NONE"));
+	}
+}
+
+void AMyCharacter::PickUpObject()
+{
+	PickUp_Server();
 }
 
 void AMyCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	
+	UpdatePickupPrompt();
 	if (!IsLocallyControlled()) return;
-
 	
-
+	TryPickup();
+	
 	const FRotator AimRot = GetBaseAimRotation();
 	const FRotator ActorRot = GetActorRotation();
 
@@ -180,6 +219,18 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			EIC->BindAction(IA_Aim, ETriggerEvent::Started, this, &AMyCharacter::StartAiming);
 		}
+		if (IA_PickUp)
+		{
+			EIC->BindAction(IA_PickUp, ETriggerEvent::Completed, this, &AMyCharacter::PickUpObject);	
+		}
+	}
+}
+
+void AMyCharacter::TryPickup()
+{
+	if (IsLocallyControlled())
+	{
+		TryPickup_Server();
 	}
 }
 
@@ -213,6 +264,37 @@ void AMyCharacter::SprintStop(const FInputActionValue& Value)
 	Server_SprintStop();
 }
 
+void AMyCharacter::TryPickup_Server_Implementation()
+{
+	if (!HasAuthority()) return;
+
+	FHitResult Hit;
+	FVector Start = FollowCamera->GetComponentLocation();
+	FVector End = Start + FollowCamera->GetForwardVector() * 1400.f;
+
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	FColor color = FColor::Blue;
+	
+	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		AActor* HitActor = Hit.GetActor();
+		if (HitActor && HitActor->GetClass()->ImplementsInterface(UPickupable::StaticClass()))
+		{
+			color = FColor::Green;
+			FocusedPickup = Hit.GetActor();
+		}
+		else
+		{
+			FocusedPickup = nullptr;
+			color = FColor::Red;
+		}
+	}
+	
+	DrawDebugLine(GetWorld(), Start, End, color, false, 0.2f, 0, 1.f);
+}
+
 void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
 {
 	bIsSprinting = bNewSprinting;
@@ -225,15 +307,17 @@ void AMyCharacter::OnHealthChanged_Client(float NewHealth, float Delta)
 
 	if (IsLocallyControlled())
 	{
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
-		{
-			if (AShooterHUD* HUD = Cast<AShooterHUD>(PC->GetHUD()))
-			{
-				// HUD->UpdateHealth(NewHealth, HealthComponent->MaxHealth);
-			}
-		}
+		HUD->UpdateHealth(NewHealth, HealthComponent->MaxHealth);
 	}
-}	
+}
+
+void AMyCharacter::OnStaminaChanged_Client(float NewStamina)
+{
+	if (IsLocallyControlled())
+	{
+		HUD->UpdateStamina(NewStamina);
+	}
+}
 
 void AMyCharacter::OnDeath()
 {
@@ -282,6 +366,16 @@ void AMyCharacter::Server_Aiming_Implementation()
 	if (!HasAuthority() || !bEquip) return;
 	bIsAiming = !bIsAiming;
 	CanSprint = !bIsAiming;
+}
+
+void AMyCharacter::PickUp_Server_Implementation()
+{
+	if (!HasAuthority()) return;
+
+	if (FocusedPickup && FocusedPickup->GetClass()->ImplementsInterface(UPickupable::StaticClass()))
+	{
+		IPickupable::Execute_OnPickedUp(FocusedPickup, this);
+	}
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
