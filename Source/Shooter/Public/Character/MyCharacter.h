@@ -32,7 +32,9 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	ABaseWeapon* GetCurrentWeapon() {return CurrentWeapon;}
-	/** === Camera === */
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Inventory")
+	UInventoryComponent* Inventory;
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	USpringArmComponent* CameraBoom;
@@ -97,10 +99,6 @@ protected:
 	// Скорость ходьбы (удобно править из деталей)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Movement")
 	float WalkSpeed = 300.f;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Inventory")
-	UInventoryComponent* Inventory;
-	
 
 	UFUNCTION()
 	void OnHealthChanged_Client(float NewHealth, float Delta);
@@ -240,7 +238,7 @@ public:
 	UHealthComponent* GetHealsComponent() const {return HealthComponent;};
 
 	UFUNCTION()
-	void AddItemToInventory(const FItemData& Item);
+	void AddItemToInventory(FName ItemID, int32 Quantity = 1);
 	
 private:
 	AShooterHUD* HUD;

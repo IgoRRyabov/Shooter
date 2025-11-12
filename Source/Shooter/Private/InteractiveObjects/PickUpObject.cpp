@@ -2,6 +2,7 @@
 
 #include "Character/MyCharacter.h"
 #include "Components/SphereComponent.h"
+#include "GameplaySystems/ItemDatabase.h"
 #include "Net/UnrealNetwork.h"
 
 APickUpObject::APickUpObject()
@@ -11,7 +12,7 @@ APickUpObject::APickUpObject()
 
 	MeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MeshComponent"));
 	RootComponent = MeshComponent;
-	
+
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SphereComponent->SetupAttachment(RootComponent);
 	SphereComponent->SetSphereRadius(150.f);
@@ -29,9 +30,9 @@ void APickUpObject::OnPickedUp_Implementation(class AMyCharacter* Picker)
 {
 	if (HasAuthority())
 	{
-		if (Picker)
+		if (AMyCharacter* MyChar = Cast<AMyCharacter>(Picker))
 		{
-			Picker->AddItemToInventory(ItemData);
+			MyChar->AddItemToInventory(ItemID, 1);
 		}
 
 		Destroy();
@@ -41,9 +42,4 @@ void APickUpObject::OnPickedUp_Implementation(class AMyCharacter* Picker)
 void APickUpObject::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME(APickUpObject, ItemData);
 }
-
-
-

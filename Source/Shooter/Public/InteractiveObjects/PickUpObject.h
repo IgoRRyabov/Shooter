@@ -24,12 +24,10 @@ protected:
 	class UStaticMeshComponent* MeshComponent;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category="Item")
-	FItemData ItemData;
+	FName ItemID;
 
 public:
 	virtual void OnPickedUp_Implementation(class AMyCharacter* Picker) override;
 
-protected:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-
 };

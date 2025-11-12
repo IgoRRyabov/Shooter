@@ -3,34 +3,49 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Structs/ItemData.h"
+#include "Structs/InventoryItem.h"
 #include "InventoryComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnInventoryUpdated);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class SHOOTER_API UInventoryComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-public:	
+public:
 	UInventoryComponent();
 
-	UFUNCTION(Server, Reliable, BlueprintCallable)
-	void AddItem_Server(const FItemData& NewItem);
+	/** Добавить предмет (только сервер) */
+	UFUNCTION(Server, Reliable)
+	void ServerAddItem(FName ItemID, int32 Quantity = 1);
 
-	UFUNCTION(BlueprintCallable)
+	/** Удалить предмет (только сервер) */
+	UFUNCTION(Server, Reliable)
+	void ServerRemoveItem(FName ItemID, int32 Quantity = 1);
+
+	/** Получить все предметы */
+	UFUNCTION(BlueprintCallable, Category="Inventory")
+	const TArray<FInventoryItem>& GetItems() const { return Items; }
+
+	/** Проверить, есть ли предмет */
+	UFUNCTION(BlueprintCallable, Category="Inventory")
 	bool HasItem(FName ItemID) const;
 
-	UFUNCTION(BlueprintCallable)
-	const TArray<FItemData>& GetItems() const { return Items; }
+	/** Делегат для обновления UI */
+	UPROPERTY(BlueprintAssignable, Category="Inventory")
+	FOnInventoryUpdated OnInventoryUpdated;
 
 protected:
-	UPROPERTY(ReplicatedUsing = OnRep_Items, VisibleAnywhere, BlueprintReadOnly)
-	TArray<FItemData> Items;
+	/** Список предметов */
+	UPROPERTY(ReplicatedUsing=OnRep_Items, VisibleAnywhere, BlueprintReadOnly)
+	TArray<FInventoryItem> Items;
 
 	UFUNCTION()
 	void OnRep_Items();
 
-	void AddItem_Internal(const FItemData& NewItem);
+	void AddItem_Internal(FName ItemID, int32 Quantity);
+	void RemoveItem_Internal(FName ItemID, int32 Quantity);
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 

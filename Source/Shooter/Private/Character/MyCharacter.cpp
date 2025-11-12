@@ -123,6 +123,14 @@ void AMyCharacter::BeginPlay()
 	}
 }
 
+void AMyCharacter::AddItemToInventory(FName ItemID, int32 Quantity)
+{
+	if (HasAuthority())
+	{
+		Inventory->ServerAddItem(ItemID, Quantity);
+	}
+}
+
 void AMyCharacter::HUD_Connect()
 {
 	if (!IsLocallyControlled()) return;
@@ -301,18 +309,6 @@ void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
 {
 	bIsSprinting = bNewSprinting;
 	OnRep_Sprinting();
-}
-
-void AMyCharacter::AddItemToInventory(const FItemData& Item)
-{
-	if (HasAuthority())
-	{
-		Inventory->AddItem_Server(Item);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Only server can add items"));
-	}
 }
 
 void AMyCharacter::OnHealthChanged_Client(float NewHealth, float Delta)
