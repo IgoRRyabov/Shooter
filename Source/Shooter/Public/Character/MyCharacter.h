@@ -127,8 +127,13 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void TryPickup_Server();
-	
+
+	UFUNCTION()
 	void TryPickup();
+
+	UFUNCTION()
+	void PerformInteractionTrace();
+	
 	// RPC, если спринтом управляет сервер
 	UFUNCTION(Server, Reliable)
 	void Server_SprintStart();
@@ -138,9 +143,6 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void Server_Aiming();
-
-	UFUNCTION(Server, Reliable)
-	void PickUp_Server();
 	
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -164,9 +166,6 @@ protected:
 	// Текущее оружие (реплицируется)
 	UPROPERTY(ReplicatedUsing=OnRep_CurrentWeapon)
 	ABaseWeapon* CurrentWeapon = nullptr;
-
-	UPROPERTY()
-	AActor* FocusedPickup;
 
 	UPROPERTY(ReplicatedUsing=OnRep_Equipped, BlueprintReadOnly)
 	bool bEquip = false;
@@ -237,10 +236,8 @@ public:
 private:
 	AShooterHUD* HUD;
 	APlayerController* PC;
-
+	AActor* FocusedPickup;
+	
 	void HUD_Connect();
 	void PC_Connect();
-
-	void UpdatePickupPrompt();
-	void PickUpObject();
 };

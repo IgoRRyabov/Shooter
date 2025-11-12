@@ -17,12 +17,4 @@ class SHOOTER_API IPickupable
 public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Pickup")
 	void OnPickedUp(class AMyCharacter* Picker);
-
-	/** Текст для UI (например: "[E] Поднять аптечку") */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Pickup")
-	FText GetPickupText() const;
-
-	/** Позиция, где отображается подсказка (например, над предметом) */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category="Pickup")
-	FVector GetPickupLocation() const;
 };

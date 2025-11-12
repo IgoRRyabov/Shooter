@@ -136,31 +136,13 @@ void AMyCharacter::PC_Connect()
 	PC = Cast<APlayerController>(GetController());
 }
 
-void AMyCharacter::UpdatePickupPrompt()
-{
-	if (FocusedPickup)
-	{
-		FText text = IPickupable::Execute_GetPickupText(FocusedPickup);
-		if (HUD)HUD->UpdatePickupPrompt(text, true);
-	}
-	else
-	{
-		if (HUD)HUD->UpdatePickupPrompt(FText::FromString("NONE"));
-	}
-}
-
-void AMyCharacter::PickUpObject()
-{
-	PickUp_Server();
-}
-
 void AMyCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	UpdatePickupPrompt();
+	
 	if (!IsLocallyControlled()) return;
 	
-	TryPickup();
+	PerformInteractionTrace();
 	
 	const FRotator AimRot = GetBaseAimRotation();
 	const FRotator ActorRot = GetActorRotation();
@@ -221,17 +203,47 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		}
 		if (IA_PickUp)
 		{
-			EIC->BindAction(IA_PickUp, ETriggerEvent::Completed, this, &AMyCharacter::PickUpObject);	
+			EIC->BindAction(IA_PickUp, ETriggerEvent::Completed, this, &AMyCharacter::TryPickup);	
 		}
 	}
 }
 
 void AMyCharacter::TryPickup()
 {
-	if (IsLocallyControlled())
+	if (!HasAuthority())
 	{
 		TryPickup_Server();
 	}
+
+	TryPickup_Server();
+}
+
+void AMyCharacter::PerformInteractionTrace()
+{
+	FVector Start = GetActorLocation();
+	FVector End = Start + GetControlRotation().Vector() * 300.f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+
+	AActor* HitActor = (bHit ? Hit.GetActor() : nullptr);
+
+	if (HitActor && HitActor->Implements<UPickupable>())
+	{
+		if (HitActor != FocusedPickup)
+		{
+			FocusedPickup = HitActor;
+			HUD->UpdatePickupPrompt(true);
+		}
+	}
+	else
+	{
+		//FocusedPickup = nullptr;
+		//HUD->UpdatePickupPrompt(false);
+	}	
 }
 
 void AMyCharacter::Move(const FInputActionValue& Value)
@@ -268,31 +280,13 @@ void AMyCharacter::TryPickup_Server_Implementation()
 {
 	if (!HasAuthority()) return;
 
-	FHitResult Hit;
-	FVector Start = FollowCamera->GetComponentLocation();
-	FVector End = Start + FollowCamera->GetForwardVector() * 1400.f;
-
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this);
-
-	FColor color = FColor::Blue;
-	
-	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	if (FocusedPickup && FocusedPickup->Implements<UPickupable>())
 	{
-		AActor* HitActor = Hit.GetActor();
-		if (HitActor && HitActor->GetClass()->ImplementsInterface(UPickupable::StaticClass()))
-		{
-			color = FColor::Green;
-			FocusedPickup = Hit.GetActor();
-		}
-		else
-		{
-			FocusedPickup = nullptr;
-			color = FColor::Red;
-		}
+		IPickupable::Execute_OnPickedUp(FocusedPickup, this);
+	}else if (FocusedPickup == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Error FocusedPickup"));
 	}
-	
-	DrawDebugLine(GetWorld(), Start, End, color, false, 0.2f, 0, 1.f);
 }
 
 void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
@@ -366,16 +360,6 @@ void AMyCharacter::Server_Aiming_Implementation()
 	if (!HasAuthority() || !bEquip) return;
 	bIsAiming = !bIsAiming;
 	CanSprint = !bIsAiming;
-}
-
-void AMyCharacter::PickUp_Server_Implementation()
-{
-	if (!HasAuthority()) return;
-
-	if (FocusedPickup && FocusedPickup->GetClass()->ImplementsInterface(UPickupable::StaticClass()))
-	{
-		IPickupable::Execute_OnPickedUp(FocusedPickup, this);
-	}
 }
 
 void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

@@ -59,11 +59,10 @@ void AShooterHUD::UpdateStamina(float NewStamina)
 	}
 }
 
-void AShooterHUD::UpdatePickupPrompt(const FText& NewPickupPrompt, bool isVisible)
+void AShooterHUD::UpdatePickupPrompt(bool isVisible)
 {
 	if (isVisible)
 	{
-		PickUpWidget->SetPickUpText(NewPickupPrompt);
 		PickUpWidget->SetVisibility(ESlateVisibility::Visible);
 	}
 	else

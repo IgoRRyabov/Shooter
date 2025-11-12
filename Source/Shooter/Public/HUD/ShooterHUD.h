@@ -41,5 +41,5 @@ public:
 
 	void UpdateStamina(float NewStamina);
 
-	void UpdatePickupPrompt(const FText& NewPickupPrompt, bool isVisible = false);
+	void UpdatePickupPrompt(bool isVisible = false);
 };
