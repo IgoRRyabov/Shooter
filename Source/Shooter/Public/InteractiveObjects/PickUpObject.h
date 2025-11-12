@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interfaces/Pickupable.h"
+#include "Structs/ItemData.h"
 #include "PickUpObject.generated.h"
 
 UCLASS()
@@ -22,6 +23,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	class UStaticMeshComponent* MeshComponent;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category="Item")
+	FItemData ItemData;
+
 public:
 	virtual void OnPickedUp_Implementation(class AMyCharacter* Picker) override;
+
+protected:
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 };

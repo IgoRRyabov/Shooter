@@ -6,6 +6,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/InventoryComponent.h"
 #include "Components/SprintMovementModComponent.h"
 #include "HUD/ShooterHUD.h"
 #include "Interfaces/Pickupable.h"
@@ -45,10 +46,11 @@ AMyCharacter::AMyCharacter()
 	GetCharacterMovement()->bUseControllerDesiredRotation = true; // хотим поворот к контроллеру
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
 	
-	MovementMods = CreateDefaultSubobject<UMovementModsManagerComponent>(TEXT("MovementModsManager"));
-	Stamina      = CreateDefaultSubobject<UStaminaComponent>(TEXT("Stamina"));
-	SprintMod    = CreateDefaultSubobject<USprintMovementModComponent>(TEXT("SprintMod"));
+	MovementMods	= CreateDefaultSubobject<UMovementModsManagerComponent>(TEXT("MovementModsManager"));
+	Stamina			= CreateDefaultSubobject<UStaminaComponent>(TEXT("Stamina"));
+	SprintMod		= CreateDefaultSubobject<USprintMovementModComponent>(TEXT("SprintMod"));
 	HealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("HealthComponent"));
+	Inventory		= CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 }
 
 void AMyCharacter::BeginPlay()
@@ -299,6 +301,18 @@ void AMyCharacter::Server_SetSprinting_Implementation(bool bNewSprinting)
 {
 	bIsSprinting = bNewSprinting;
 	OnRep_Sprinting();
+}
+
+void AMyCharacter::AddItemToInventory(const FItemData& Item)
+{
+	if (HasAuthority())
+	{
+		Inventory->AddItem_Server(Item);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Only server can add items"));
+	}
 }
 
 void AMyCharacter::OnHealthChanged_Client(float NewHealth, float Delta)

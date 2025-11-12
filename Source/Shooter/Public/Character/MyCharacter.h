@@ -4,6 +4,7 @@
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
 #include "Components/HealthComponent.h"
+#include "Components/InventoryComponent.h"
 #include "Weapons/BaseWeapon.h"
 #include "Widgets/PickUpWidget.h"
 #include "MyCharacter.generated.h"
@@ -96,6 +97,10 @@ protected:
 	// Скорость ходьбы (удобно править из деталей)
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Movement")
 	float WalkSpeed = 300.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Inventory")
+	UInventoryComponent* Inventory;
+	
 
 	UFUNCTION()
 	void OnHealthChanged_Client(float NewHealth, float Delta);
@@ -233,6 +238,10 @@ public:
 
 	UFUNCTION()
 	UHealthComponent* GetHealsComponent() const {return HealthComponent;};
+
+	UFUNCTION()
+	void AddItemToInventory(const FItemData& Item);
+	
 private:
 	AShooterHUD* HUD;
 	APlayerController* PC;

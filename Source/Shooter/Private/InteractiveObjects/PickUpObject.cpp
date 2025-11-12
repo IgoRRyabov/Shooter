@@ -2,6 +2,7 @@
 
 #include "Character/MyCharacter.h"
 #include "Components/SphereComponent.h"
+#include "Net/UnrealNetwork.h"
 
 APickUpObject::APickUpObject()
 {
@@ -26,9 +27,22 @@ void APickUpObject::BeginPlay()
 
 void APickUpObject::OnPickedUp_Implementation(class AMyCharacter* Picker)
 {
-	if (!Picker || !HasAuthority()) return;
-	
-	Destroy();
+	if (HasAuthority())
+	{
+		if (Picker)
+		{
+			Picker->AddItemToInventory(ItemData);
+		}
+
+		Destroy();
+	}
+}
+
+void APickUpObject::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(APickUpObject, ItemData);
 }
 
 
