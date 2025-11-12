@@ -214,8 +214,6 @@ void AMyCharacter::TryPickup()
 	{
 		TryPickup_Server();
 	}
-
-	TryPickup_Server();
 }
 
 void AMyCharacter::PerformInteractionTrace()
@@ -241,8 +239,8 @@ void AMyCharacter::PerformInteractionTrace()
 	}
 	else
 	{
-		//FocusedPickup = nullptr;
-		//HUD->UpdatePickupPrompt(false);
+		FocusedPickup = nullptr;
+		HUD->UpdatePickupPrompt(false);
 	}	
 }
 
@@ -280,12 +278,20 @@ void AMyCharacter::TryPickup_Server_Implementation()
 {
 	if (!HasAuthority()) return;
 
-	if (FocusedPickup && FocusedPickup->Implements<UPickupable>())
+	FVector Start = GetActorLocation();
+	FVector End = Start + GetControlRotation().Vector() * 300.f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params);
+	AActor* HitActor = (bHit ? Hit.GetActor() : nullptr);
+
+
+	if (HitActor && HitActor->Implements<UPickupable>())
 	{
-		IPickupable::Execute_OnPickedUp(FocusedPickup, this);
-	}else if (FocusedPickup == nullptr)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Error FocusedPickup"));
+		IPickupable::Execute_OnPickedUp(HitActor, this);
 	}
 }
 
