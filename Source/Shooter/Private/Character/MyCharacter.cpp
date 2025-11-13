@@ -13,6 +13,7 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Net/UnrealNetwork.h"
 #include "Weapons/BaseWeapon.h"
+#include "Widgets/InventoryWidget.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -175,7 +176,9 @@ void AMyCharacter::Tick(float DeltaSeconds)
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-		
+
+	InputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::ToggleInventory);
+	
 	if (UEnhancedInputComponent* EIC = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		if (IA_Move) EIC->BindAction(IA_Move, ETriggerEvent::Triggered, this, &AMyCharacter::Move);
@@ -215,6 +218,55 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 		{
 			EIC->BindAction(IA_PickUp, ETriggerEvent::Completed, this, &AMyCharacter::TryPickup);	
 		}
+	}
+}
+
+void AMyCharacter::ToggleInventory()
+{
+	APlayerController* PController = Cast<APlayerController>(GetController());
+	if (!PController || !InventoryWidgetClass) return;
+
+	// Если виджет ещё не создан — создаём
+	if (!InventoryWidget)
+	{
+		InventoryWidget = CreateWidget<UInventoryWidget>(PController, InventoryWidgetClass);
+		if (InventoryWidget)
+		{
+			InventoryWidget->AddToViewport();
+			InventoryWidget->SetVisibility(ESlateVisibility::Hidden);
+			InventoryWidget->InitializeInventory(Inventory);
+		}
+	}
+
+	bIsInventoryOpen = !bIsInventoryOpen;
+
+	if (bIsInventoryOpen)
+	{
+		// Показываем виджет
+		InventoryWidget->SetVisibility(ESlateVisibility::Visible);
+		//InventoryWidget->SetKeyboardFocus();
+		// Блокируем передвижение
+		GetCharacterMovement()->DisableMovement();
+
+		// Режим только UI — курсор включён, управление выключено
+		FInputModeUIOnly InputMode;
+		InputMode.SetWidgetToFocus(InventoryWidget->TakeWidget());
+		InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+		PController->SetInputMode(InputMode);
+		PController->bShowMouseCursor = true;
+	}
+	else
+	{
+		// Скрываем виджет
+		InventoryWidget->SetVisibility(ESlateVisibility::Hidden);
+
+		// Возвращаем управление
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+		// Режим игры
+		FInputModeGameOnly InputMode;
+		PController->SetInputMode(InputMode);
+		PController->bShowMouseCursor = false;
 	}
 }
 

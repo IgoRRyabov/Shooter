@@ -35,7 +35,12 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Inventory")
 	UInventoryComponent* Inventory;
+
+	void ToggleInventory();
 protected:
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<class UInventoryWidget> InventoryWidgetClass;
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Camera")
 	USpringArmComponent* CameraBoom;
 
@@ -247,4 +252,9 @@ private:
 	
 	void HUD_Connect();
 	void PC_Connect();
+
+	UPROPERTY()
+	class UInventoryWidget* InventoryWidget;
+
+	bool bIsInventoryOpen = false;
 };

@@ -2,37 +2,43 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "Components/InventoryComponent.h"
 #include "InventoryWidget.generated.h"
+
+class UUniformGridPanel;
+class UInventoryComponent;
+class UInventorySlotWidget;
 
 UCLASS()
 class SHOOTER_API UInventoryWidget : public UUserWidget
 {
 	GENERATED_BODY()
-
-public:
-	/** Привязать компонент инвентаря */
-	void InitializeInventory(UInventoryComponent* InInventory);
-
-	/** Показать/скрыть UI */
-	void SetInventoryVisible(bool bVisible);
-
-	/** Проверить, открыт ли UI */
-	bool IsInventoryVisible() const { return bIsVisible; }
 	
-protected:
-	UPROPERTY(meta=(BindWidget))
-	class UScrollBox* ScrollBox_Items;
+public:
+	virtual void NativeConstruct() override;
 
-	UPROPERTY(EditDefaultsOnly, Category="Inventory")
-	TSubclassOf<class UInventoryItemWidget> ItemWidgetClass;
+	UFUNCTION(BlueprintCallable)
+	void InitializeInventory(class UInventoryComponent* InInventory);
 
+	UFUNCTION(BlueprintCallable, Category="Inventory")
+	bool IsInitialized() const { return bInitialized; }
+	
 	UFUNCTION()
 	void RefreshInventory();
+	
+	UPROPERTY(meta = (BindWidget))
+	class UImage* CharacterImage;
 
+	UPROPERTY(meta = (BindWidget))
+	class UUniformGridPanel* GridPanel;
+
+	UPROPERTY(EditAnywhere, Category="Inventory")
+	TSubclassOf<UInventorySlotWidget> SlotWidgetClass;
+
+	virtual FReply NativeOnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;
+	
 private:
 	UPROPERTY()
-	UInventoryComponent* InventoryComponent;
+	class UInventoryComponent* Inventory;
 
-	bool bIsVisible = false;
+	bool bInitialized = false;
 };
